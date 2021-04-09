@@ -1,0 +1,246 @@
+---
+title: "Machine Learning Project"
+author: "Balaji Rajan"
+date: "4/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. The project will also use prediction model to predict 20 different test cases. 
+
+## Steps to be followed in this project
+
+A. We will load the data files into variable
+
+B. We will clean the files of inconsistent data
+
+C. We will do exploratory analysis
+
+D. We will then perform prediction using some of the Machine Learning techniques
+
+E. We will discuss the analysis and the results
+
+## Loading Libraries
+
+
+```{r _1, message=FALSE, warning=FALSE}
+library(caret)
+library(ggplot2)
+library(rattle)
+
+```
+
+# Load Data
+
+## Load Training Data
+
+```{r _2}
+TrainData<-read.csv("C:/Users/balaj/OneDrive/My Learnings/Data Science/Course 8/Project/pml-training.csv")
+dim(TrainData)
+
+```
+ 
+## Load Test Data
+ 
+```{r _3}
+
+TestData<-read.csv("C:/Users/balaj/OneDrive/My Learnings/Data Science/Course 8/Project/pml-testing.csv")
+dim(TestData)
+```
+ 
+ Let us look at the data table structure
+ 
+```{r _4}
+str(TrainData)
+```
+ 
+## Data Observations
+ 
+ A. First 7 columns are identifying the participant, timestamp etc. Things unrelated to the model building
+ 
+ B. There are lot of records with NA or NULL values. They will skew the model's predicting capability
+ 
+ C. The data needs to be scrubbed for the predictions to be accurate
+ 
+ 
+## Criteria for cleaning the data
+
+ 
+ A. Let us remove the columns where majority (90%) of data in NULL or NA
+ 
+ B. Let us also remove the first 7 columns which are not adding any information to the model
+
+
+### On the Training Dataset
+ 
+```{r _5}
+cols_remove<-which(colSums(is.na(TrainData) | TrainData=="")>0.9*dim(TrainData)[1])
+
+TrainDataClean<-TrainData[,-cols_remove]
+TrainDataClean<-TrainDataClean[,-c(1:7)]
+dim(TrainDataClean)
+```
+ 
+ 
+### On the Testing Dataset
+ 
+```{r _6}
+TestDataClean<-TestData[,-cols_remove]
+TestDataClean<-TestDataClean[,-c(1:7)]
+dim(TestDataClean)
+```
+
+
+#### Let us look at the structure of our clean data
+
+```{r _7}
+str(TrainDataClean)
+```
+
+Now that we have the clean data, we will start the Machine Learning algorithm process
+
+
+#### Create Cross Validation data set
+
+We will create the test data of 20 scenarios for presenting the outcome for use in production. This sample will not be used till we finalize the prediction methos we will use. 
+
+Hence we will partition the training dataset for validation purposes
+
+```{r _8}
+set.seed(12345)
+inTrain<-createDataPartition(TrainDataClean$classe, p=0.75, list=FALSE)
+Train<-TrainDataClean[inTrain,]
+Test<-TrainDataClean[-inTrain,]
+dim(Train)
+dim(Test)
+```
+
+
+# Prediction
+
+
+## We are now ready to run the training and prediction using the various models
+
+
+We will use
+
+A. Classification Tree
+
+B. Random Forest
+
+c. Gradient Boosting Method
+
+## Classification Tree Method
+
+```{r _9}
+trControl<-trainControl(method="cv", number=5)
+model_CT<-train(classe~., data=Train, method="rpart", trControl=trControl)
+fancyRpartPlot(model_CT$finalModel)
+```
+
+Using the trained model for prediction
+
+```{r _10}
+pred_CT<-predict(model_CT, newdata=Test)
+fac_Test<-as.factor(Test$classe)
+confMat_CT<-confusionMatrix(fac_Test, pred_CT)
+confMat_CT$table
+confMat_CT$overall
+```
+
+## Random Forest Method
+
+```{r _11}
+model_RF<-train(classe~., data=Train, method="rf", verbose=FALSE, trControl=trControl)
+
+
+```
+
+Random Forest Model Output
+```{r _12}
+print(model_RF)
+```
+
+Prediction
+```{r _13}
+pred_RF<-predict(model_RF,newdata=Test)
+confMat_RF<-confusionMatrix(fac_Test,pred_RF)
+confMat_RF$table
+confMat_RF$overall[1]
+names(model_RF$finalModel)
+confMat_RF$overall[1]
+```
+
+We will show some of the plots of Random Forest and analyse the findings
+
+A. Let us look at the number of predictors Random Forest took and how its accuracy changed
+
+```{r _14}
+plot(model_RF,main="Accuracy of Random forest model by number of predictors")
+```
+
+B. Let us look at the model error by number of trees
+
+```{r _15}
+plot(model_RF$finalModel,main="Model error of Random forest model by number of trees")
+```
+
+C. Let us look at the predictors that Random Forest determined important
+
+```{r _16}
+MostImpVars <- varImp(model_RF)
+MostImpVars
+
+```
+
+## Gradient boosting method
+
+One last model, we will choose GBM method for predicting
+
+### Train the model
+```{r _17}
+model_GBM<-train(classe~., method="gbm", data=Train, verbose=FALSE)
+
+print(model_GBM)
+```
+
+Testing the model
+
+```{r _18}
+pred_GBM<-predict(model_GBM,newdata=Test)
+confMat_GBM<-confusionMatrix(pred_GBM,fac_Test)
+
+```
+
+Let us look at some of the graphs created by Gradient Boosting Classification
+
+```{r _19}
+plot(model_GBM)
+confMat_GBM$table
+confMat_GBM$overall[1]
+```
+
+# Conclusion
+
+In the three models we described, we found Random FOrest gave the best accuracy, whereas Gradient Boost took the most computation time (and there is a need to speak about the efficiency of the model in a trade-off.)
+
+When we hand over the prediction model to the deployment team, we have to baseline the model performance against the cross validation data...this data has not been seen by any of the models yet. 
+
+```{r _20}
+FinalPred<-predict(model_RF, newdata=TestDataClean)
+FinalPred
+
+```
+
+
+
+
